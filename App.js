@@ -38,7 +38,15 @@ const styles = StyleSheet.create({
 });
 
 const FlatListBasics = () => {
-  const {text, setText, data, listRef, saveItem} = useListState();
+  const {
+    text,
+    setText,
+    list,
+    listRef,
+    saveItem,
+    deleteItem,
+    clearAll,
+  } = useListState();
 
   return (
     <View style={styles.container}>
@@ -51,7 +59,7 @@ const FlatListBasics = () => {
       <FlatList
         style={styles.list}
         ref={listRef}
-        data={data}
+        data={list}
         renderItem={({item, index}) => (
           <Text style={styles.item}>
             {index + 1}: {item.text}
@@ -60,26 +68,54 @@ const FlatListBasics = () => {
         keyExtractor={(item, index) => index.toString()}
       />
       <Button style={styles.button} title="Add Item" onPress={saveItem} />
+      <Button style={styles.button} title="Delete Item" onPress={deleteItem} />
+      <Button style={styles.button} title="Clear All" onPress={clearAll} />
     </View>
   );
 };
 
 const useListState = () => {
-  const [data, setData] = useState([]);
+  const [list, setList] = useState([]);
   const [text, setText] = useState('');
   const listRef = useRef();
+
+  const saveList = useCallback(async (newList) => {
+    setList(newList);
+    setText('');
+    listRef.current.scrollToEnd();
+    await saveToStorage(newList);
+  }, []);
 
   /**
    * Save cuurrently entered text as a new item
    */
-  const saveItem = useCallback(async () => {
-    const newData = data.concat([{text}]);
-    setData(newData);
-    setText('');
-    listRef.current.scrollToEnd();
-    const jsonValue = JSON.stringify(newData);
-    await AsyncStorage.setItem(STORAGE_KEY, jsonValue);
-  }, [data, text]);
+  const saveItem = useCallback(() => {
+    const newList = list.concat([{text}]);
+    saveList(newList);
+  }, [list, saveList, text]);
+
+  /**
+   * Delete an item from the list and save the entire list again
+   */
+  const deleteItem = useCallback(
+    (itemToRemove) => {
+      const newList = list.filter((item) => item !== itemToRemove);
+      saveList(newList);
+    },
+    [list, saveList],
+  );
+
+  // const clearItems = useCallback(() => {
+  //   // Code to clear storage and remove this comment
+  // }, []);
+
+  const clearAll = async () => {
+    try {
+      saveList();
+    } catch (e) {
+      // clear error
+    }
+  };
 
   /**
    * Effect runing one time (initially) to read previosly stored data
@@ -91,18 +127,25 @@ const useListState = () => {
       if (jsonValue) {
         items = JSON.parse(jsonValue);
       }
-      setData(items);
+      setList(items);
     };
     readInitialItemsFromStorage();
   }, []);
 
   return {
-    data,
+    list,
     saveItem,
+    deleteItem,
+    clearAll,
     text,
     setText,
     listRef,
   };
+};
+
+const saveToStorage = (list) => {
+  const jsonValue = JSON.stringify(list);
+  return AsyncStorage.setItem(STORAGE_KEY, jsonValue);
 };
 
 const STORAGE_KEY = '@the_storage';
