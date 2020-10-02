@@ -1,4 +1,4 @@
-import React, {useState, useRef, useEffect} from 'react';
+import React, {useState, useRef, useEffect, useCallback} from 'react';
 import {
   FlatList,
   StyleSheet,
@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
 });
 
 const FlatListBasics = () => {
-  const {text, setText, listRef, data, setData} = useListState();
+  const {text, setText, data, listRef, saveItem} = useListState();
 
   return (
     <View style={styles.container}>
@@ -54,19 +54,12 @@ const FlatListBasics = () => {
         data={data}
         renderItem={({item, index}) => (
           <Text style={styles.item}>
-            {index + 1}: {item.key}
+            {index + 1}: {item.text}
           </Text>
         )}
         keyExtractor={(item, index) => index.toString()}
       />
-      <Button
-        style={styles.button}
-        title="Add Item"
-        onPress={() => {
-          setData([...data, {key: text}]);
-          listRef.current.scrollToEnd();
-        }}
-      />
+      <Button style={styles.button} title="Add Item" onPress={saveItem} />
     </View>
   );
 };
@@ -76,28 +69,42 @@ const useListState = () => {
   const [text, setText] = useState('');
   const listRef = useRef();
 
-  /*
-    Use AsyncStorage setItem and getItem to read and write local changes
-    to phone memory in the effect hook bellow
-
-    const storedItems = await AsyncStorage ...
-    console.log({ storedItems });
-    setData(storedItems || []);
+  /**
+   * Save cuurrently entered text as a new item
    */
-  AsyncStorage.getItem('LIST_DATA');
+  const saveItem = useCallback(async () => {
+    const newData = data.concat([{text}]);
+    setData(newData);
+    setText('');
+    listRef.current.scrollToEnd();
+    const jsonValue = JSON.stringify(newData);
+    await AsyncStorage.setItem(STORAGE_KEY, jsonValue);
+  }, [data, text]);
 
+  /**
+   * Effect runing one time (initially) to read previosly stored data
+   */
   useEffect(() => {
-    const readStoredItems = async () => {};
-    readStoredItems();
+    const readInitialItemsFromStorage = async () => {
+      let items = [];
+      const jsonValue = await AsyncStorage.getItem(STORAGE_KEY);
+      if (jsonValue) {
+        items = JSON.parse(jsonValue);
+      }
+      setData(items);
+    };
+    readInitialItemsFromStorage();
   }, []);
 
   return {
     data,
-    setData,
+    saveItem,
     text,
     setText,
     listRef,
   };
 };
+
+const STORAGE_KEY = '@the_storage';
 
 export default FlatListBasics;
